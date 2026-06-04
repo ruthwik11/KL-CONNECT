@@ -54,23 +54,28 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
   // JWT Verification Middleware Handshake
   io.use(async (socket: AuthenticatedSocket, next) => {
     const token = socket.handshake.auth?.token;
+    console.log(`🔌 [Socket Handshake] Connection attempt. Token present: ${!!token}`);
     
     if (!token) {
+      console.warn("🔌 [Socket Handshake] Failed: Token missing");
       return next(new Error("Authentication handshake failed: Token missing"));
     }
 
     try {
       const decoded = verifyAccessToken(token);
+      console.log(`🔌 [Socket Handshake] Token verified. Sub: ${decoded.sub}`);
       
       const user = await prisma.user.findUnique({
         where: { user_id: decoded.sub },
       });
 
       if (!user) {
+        console.warn(`🔌 [Socket Handshake] Failed: User ID ${decoded.sub} not found in DB`);
         return next(new Error("Authentication handshake failed: User not found"));
       }
 
       if (user.is_suspended) {
+        console.warn(`🔌 [Socket Handshake] Failed: User ${user.username} is suspended`);
         return next(new Error("Authentication handshake failed: Account suspended"));
       }
 
@@ -81,8 +86,10 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
         role: user.role,
       };
 
+      console.log(`🔌 [Socket Handshake] SUCCESS: Player ${user.username} authenticated`);
       next();
-    } catch (err) {
+    } catch (err: any) {
+      console.warn("🔌 [Socket Handshake] Failed: Invalid or expired token:", err.message || err);
       return next(new Error("Authentication handshake failed: Invalid or expired token"));
     }
   });
