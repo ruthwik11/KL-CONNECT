@@ -1,29 +1,45 @@
 import prisma from "../config/db";
 import bcrypt from "bcrypt";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const SALT_ROUNDS = 12;
 
-const ADMINS_TO_PROVISION = [
-  {
-    username: "Joe Goldberg",
-    email: "joegoldberg@gmail.com",
-    password: "Nene1stadmin",
-  },
-  {
-    username: "Jonathan Moore",
-    email: "jonathanmoore@gmail.com",
-    password: "Decoyadmin@768",
-  },
-  {
-    username: "Will Bettelheim",
-    email: "willbettelheim@gmail.com",
-    password: "Decoyadmin@2143",
-  },
-];
+const ADMINS_TO_PROVISION: { username: string; email: string; password: string }[] = [];
+
+if (process.env.ADMIN_1_USERNAME && process.env.ADMIN_1_EMAIL && process.env.ADMIN_1_PASSWORD) {
+  ADMINS_TO_PROVISION.push({
+    username: process.env.ADMIN_1_USERNAME,
+    email: process.env.ADMIN_1_EMAIL,
+    password: process.env.ADMIN_1_PASSWORD,
+  });
+}
+
+if (process.env.ADMIN_2_USERNAME && process.env.ADMIN_2_EMAIL && process.env.ADMIN_2_PASSWORD) {
+  ADMINS_TO_PROVISION.push({
+    username: process.env.ADMIN_2_USERNAME,
+    email: process.env.ADMIN_2_EMAIL,
+    password: process.env.ADMIN_2_PASSWORD,
+  });
+}
+
+if (process.env.ADMIN_3_USERNAME && process.env.ADMIN_3_EMAIL && process.env.ADMIN_3_PASSWORD) {
+  ADMINS_TO_PROVISION.push({
+    username: process.env.ADMIN_3_USERNAME,
+    email: process.env.ADMIN_3_EMAIL,
+    password: process.env.ADMIN_3_PASSWORD,
+  });
+}
 
 async function createAdmin() {
   console.log("🛠️  Initializing Admin Account Provisioning...");
   try {
+    if (ADMINS_TO_PROVISION.length === 0) {
+      console.warn("⚠️ No admin accounts configured in environment variables. Skipping provisioning.");
+      return;
+    }
+
     // 1. Clear any existing admin accounts to avoid duplicates or leftovers
     console.log("🗑️  Purging existing administrative accounts...");
     await prisma.user.deleteMany({
