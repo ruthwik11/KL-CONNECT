@@ -38,7 +38,10 @@ export function disconnectUser(userId: string) {
 export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || "http://localhost:3000",
+      origin: [
+        process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, "") : "http://localhost:3000",
+        "https://kl-connect.vercel.app"
+      ],
       methods: ["GET", "POST"],
       credentials: true,
     },

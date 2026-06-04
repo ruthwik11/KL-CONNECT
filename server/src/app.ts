@@ -36,15 +36,17 @@ app.use(
 );
 
 // CORS setup
-const allowedOrigins = [process.env.CLIENT_URL || "http://localhost:3000"];
+const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, "") : "http://localhost:3000";
+const allowedOrigins = [clientUrl, "https://kl-connect.vercel.app"];
+
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(null, false);
       }
     },
     credentials: true,
