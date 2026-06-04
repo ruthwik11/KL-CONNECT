@@ -1,0 +1,157 @@
+// server/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum MessageTarget {
+  DM
+  GROUP
+}
+
+model User {
+  user_id       String    @id @default(uuid())
+  username      String    @unique @db.VarChar(32)
+  email         String    @unique @db.VarChar(128)
+  password_hash String    @db.VarChar(255)
+  role          UserRole  @default(USER)
+  is_verified   Boolean   @default(false)
+  status_text   String?   @db.VarChar(140)
+  is_suspended  Boolean   @default(false)
+  spotify_token String?   @db.Text
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  // Relations
+  sent_friendships     Friendship[]  @relation("FriendshipUserA")
+  received_friendships Friendship[]  @relation("FriendshipUserB")
+  sent_messages        Message[]     @relation("MessageSender")
+  created_groups       Group[]       @relation("GroupCreator")
+  group_memberships    GroupMember[]
+  poll_votes           PollVote[]
+  otp_records          OTP[]
+
+  @@index([email])
+  @@index([is_suspended])
+  @@map("users")
+}
+
+model OTP {
+  otp_id     String   @id @default(uuid())
+  user_id    String?
+  email      String   @db.VarChar(128)
+  code       String   @db.VarChar(64)
+  expires_at DateTime
+  consumed   Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([email, code])
+  @@map("otps")
+}
+
+model Friendship {
+  id                String           @id @default(uuid())
+  user_a_id         String
+  user_b_id         String
+  request_sender_id String
+  status            FriendshipStatus @default(PENDING)
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+
+  user_a User @relation("FriendshipUserA", fields: [user_a_id], references: [user_id], onDelete: Cascade)
+  user_b User @relation("FriendshipUserB", fields: [user_b_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([user_a_id, user_b_id])
+  @@index([user_a_id, status])
+  @@index([user_b_id, status])
+  @@map("friendships")
+}
+
+model Group {
+  group_id   String   @id @default(uuid())
+  name       String   @db.VarChar(64)
+  is_public  Boolean  @default(true)
+  created_by String
+  created_at DateTime @default(now())
+
+  creator  User          @relation("GroupCreator", fields: [created_by], references: [user_id], onDelete: Cascade)
+  members  GroupMember[]
+  messages Message[]     @relation("GroupMessages")
+
+  @@index([is_public])
+  @@map("groups")
+}
+
+model GroupMember {
+  id        String   @id @default(uuid())
+  group_id  String
+  user_id   String
+  joined_at DateTime @default(now())
+
+  group Group @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([group_id, user_id])
+  @@map("group_members")
+}
+
+model Message {
+  msg_id      String   @id @default(uuid())
+  sender_id   String
+  target_id   String          // user_id for DM, group_id for group msg
+  target_type MessageTarget   // DM or GROUP
+  content     String   @db.Text
+  timestamp   DateTime @default(now())
+
+  sender User   @relation("MessageSender", fields: [sender_id], references: [user_id], onDelete: Cascade)
+  group  Group? @relation("GroupMessages", fields: [target_id], references: [group_id], onDelete: Cascade)
+
+  @@index([sender_id, timestamp])
+  @@index([target_id, target_type, timestamp])
+  @@map("messages")
+}
+
+model Poll {
+  poll_id     String   @id @default(uuid())
+  question    String   @db.VarChar(500)
+  options     Json     // ["Option A", "Option B", "Option C"]
+  active_date DateTime @db.Date
+  is_archived Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  votes PollVote[]
+
+  @@unique([active_date])
+  @@map("polls")
+}
+
+model PollVote {
+  vote_id         String @id @default(uuid())
+  poll_id         String
+  user_id         String
+  selected_option Int    // Index into the options JSON array
+  created_at      DateTime @default(now())
+
+  poll Poll @relation(fields: [poll_id], references: [poll_id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([poll_id, user_id])  // Enforces 1-vote-per-user constraint
+  @@map("poll_votes")
+}

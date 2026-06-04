@@ -1,0 +1,38 @@
+KL CONNECT — IMPLEMENTATION PHASES
+
+PHASE 1: INFRASTRUCTURE CORE & SCAFFOLDING
+- Project scaffolding & folder structure setup
+- Prisma ORM initialization & PostgreSQL/Redis Docker compose setup
+- Database schema mapping (Users, OTP, Friendships, Groups, Messages, Polls)
+- RS256 Asymmetric JWT key generation
+- Express server configuration & global middleware chain (Helmet, Rate Limiter, Body Parser)
+
+PHASE 2: AUTHENTICATION GATEWAY & IDENTITY
+- Registration API with @kluniversity.in domain validation pipeline
+- OTP flow integration with Resend API for code verification
+- Login API checking verification status & active accounts (is_suspended = false)
+- Refresh token rotation logic with Redis session storage
+- RBAC validation middleware (USER vs ADMIN clearance roles)
+- Account direct provisioning endpoint (Admin-only bypass OTP)
+
+PHASE 3: MESSAGING SERVICES & RELATIONSHIP DIRECTORY
+- Friendship system lifecycle (Request, Accept, Reject, Remove)
+- Bidirectional friendship validation and mutual-friend messaging constraints
+- REST API for DM history retrieval with keyset pagination (cursor-based)
+- WebSocket server integration (Socket.io) with connection handshake JWT verification
+- Real-time DM messaging dispatch and WebSocket event broadcasting
+
+PHASE 4: STUDENT COMMUNITY FEATURES
+- Public groups creation and directory query routes
+- Group member join, leave, and list query endpoints
+- Real-time group messaging and channel event rooms logic
+- Spotify OAuth 2.0 connection handler (Access/Refresh token rotation)
+- Active player loop polling to broadcast 'spotify:nowplaying' stream data
+- Real-time status bubble text updater
+
+PHASE 5: ADMINISTRATIVE MISSION CONTROL
+- Paginated user list portal (searchable, filterable by status/suspension)
+- Access registry moderator hooks to suspend, unsuspend, and delete user accounts
+- System governance data purge executor (message cold-storage archive)
+- Administrative CSV file exporter (JSON logs conversion via json2csv)
+- Poll control dashboard (archive old, deploy current, track voter constraints)
