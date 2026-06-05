@@ -84,7 +84,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set({ isConnecting: true });
 
-    const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000", {
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    if (typeof window !== "undefined" && window.location.protocol === "https:" && apiUrl.startsWith("http:")) {
+      apiUrl = apiUrl.replace("http:", "https:");
+    }
+
+    const socket = io(apiUrl, {
       auth: { token },
       transports: ["polling", "websocket"],
       reconnectionDelay: 1000,

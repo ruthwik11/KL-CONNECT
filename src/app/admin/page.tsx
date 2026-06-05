@@ -76,6 +76,58 @@ export default function AdminDashboard() {
   // Action Loading states per user
   const [actionLoadingUser, setActionLoadingUser] = React.useState<string | null>(null);
 
+  // Group Management State
+  interface AdminGroup {
+    group_id: string;
+    name: string;
+    created_at: string;
+    creator: {
+      username: string;
+      email: string;
+    };
+    memberCount: number;
+  }
+  const [groups, setGroups] = React.useState<AdminGroup[]>([]);
+  const [loadingGroups, setLoadingGroups] = React.useState(false);
+  const [groupError, setGroupError] = React.useState<string | null>(null);
+  const [actionLoadingGroup, setActionLoadingGroup] = React.useState<string | null>(null);
+
+  // Fetch groups list
+  const loadGroups = React.useCallback(async () => {
+    setLoadingGroups(true);
+    setGroupError(null);
+    try {
+      const data = await fetchApi("/admin/groups");
+      if (data.status === "success") {
+        setGroups(data.groups);
+      }
+    } catch (err: any) {
+      setGroupError(err.message || "Failed to query active group channels");
+    } finally {
+      setLoadingGroups(false);
+    }
+  }, []);
+
+  const handleDeleteGroup = async (groupId: string) => {
+    if (!confirm("CONFIRM DELETION: This permanently deletes this discussion channel and ejects all members. This action is irreversible.")) {
+      return;
+    }
+    setActionLoadingGroup(groupId);
+    setGroupError(null);
+    try {
+      const data = await fetchApi(`/admin/groups/${groupId}`, {
+        method: "DELETE",
+      });
+      if (data.status === "success") {
+        setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
+      }
+    } catch (err: any) {
+      setGroupError(err.message || "Deletion failed");
+    } finally {
+      setActionLoadingGroup(null);
+    }
+  };
+
   // Fetch users list
   const loadUsers = React.useCallback(async (page: number, search: string) => {
     setLoadingUsers(true);
@@ -101,6 +153,10 @@ export default function AdminDashboard() {
   React.useEffect(() => {
     loadUsers(currentPage, searchQuery);
   }, [currentPage, searchQuery, loadUsers]);
+
+  React.useEffect(() => {
+    loadGroups();
+  }, [loadGroups]);
 
   // Set default poll date to today on load
   React.useEffect(() => {
@@ -476,6 +532,71 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* GROUP CHANNELS DIRECTORY */}
+          <Card className="border-2 border-solid border-white bg-black shadow-none rounded-[4px]">
+            <CardHeader className="border-b-2 border-solid border-white py-4 bg-black/50 border-t-0 rounded-t-0">
+              <CardTitle className="text-[11px] font-[family-name:var(--font-press-start)] text-white">
+                // GROUP CHANNELS DIRECTORY
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {groupError && (
+                <div className="border border-solid border-white/50 bg-white/10 text-white p-3 rounded-[4px] text-[10px] uppercase text-center font-bold mb-4">
+                  ⚠️ GROUP DIRECTORY OUTAGE: {groupError}
+                </div>
+              )}
+
+              <div className="overflow-x-auto border border-solid border-white/20 rounded-[4px]">
+                <table className="w-full border-collapse text-left text-[10px]">
+                  <thead>
+                    <tr className="bg-white/10 border-b border-solid border-white/20 uppercase font-bold text-gray-300">
+                      <th className="p-3">Channel Name</th>
+                      <th className="p-3">Creator User</th>
+                      <th className="p-3">Active Members</th>
+                      <th className="p-3 text-right">System Controls</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingGroups ? (
+                      <tr>
+                        <td colSpan={4} className="p-8 text-center text-gray-400 uppercase tracking-widest animate-pulse">
+                          Querying active channel matrix...
+                        </td>
+                      </tr>
+                    ) : groups.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-8 text-center text-gray-500 uppercase">
+                          No active group channels registered
+                        </td>
+                      </tr>
+                    ) : (
+                      groups.map((g) => (
+                        <tr key={g.group_id} className="border-b border-solid border-white/10 hover:bg-white/5 transition-colors">
+                          <td className="p-3 font-bold text-white">#{g.name}</td>
+                          <td className="p-3">
+                            <span className="font-bold">{g.creator?.username || "SYSTEM"}</span>
+                            <span className="text-gray-400 text-[8px] block">{g.creator?.email || ""}</span>
+                          </td>
+                          <td className="p-3 text-gray-300 font-bold">{g.memberCount} / 50</td>
+                          <td className="p-3 text-right">
+                            <button
+                              onClick={() => handleDeleteGroup(g.group_id)}
+                              disabled={actionLoadingGroup === g.group_id}
+                              className="p-1 border border-solid border-white/20 hover:border-white text-gray-400 hover:text-white rounded cursor-pointer transition-colors"
+                              title="Delete Group Channel"
+                            >
+                              {actionLoadingGroup === g.group_id ? "..." : <Trash2 size={12} />}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         </div>

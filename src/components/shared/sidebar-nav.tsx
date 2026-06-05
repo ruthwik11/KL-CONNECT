@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { LogOut, User, Shield } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/stores/auth.store";
+import { useChatStore } from "@/stores/chat.store";
 
 export interface SidebarNavItem {
   id: string;
@@ -23,6 +24,7 @@ export function SidebarNav({ items }: SidebarNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, clearAuth } = useAuthStore();
+  const { socket, isConnecting } = useChatStore();
 
   const handleNavigate = (href: string) => {
     router.push(href);
@@ -123,8 +125,16 @@ export function SidebarNav({ items }: SidebarNavProps) {
             <span className="font-[family-name:var(--font-press-start)] text-[8px] text-foreground uppercase truncate" title={user?.username || "PLAYER X"}>
               {user?.username || "PLAYER X"}
             </span>
-            <span className="text-[9px] text-muted uppercase tracking-wider">
-              {user?.role || "USER"} // ONLINE
+            <span className="text-[8px] text-muted uppercase tracking-wider flex items-center gap-1">
+              <span>{user?.role || "USER"}</span>
+              <span>//</span>
+              {socket ? (
+                <span className="text-success font-bold">ONLINE</span>
+              ) : isConnecting ? (
+                <span className="text-warning animate-pulse">CONNECTING</span>
+              ) : (
+                <span className="text-danger font-bold animate-pulse">OFFLINE</span>
+              )}
             </span>
           </div>
         </div>

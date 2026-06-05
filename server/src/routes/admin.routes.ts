@@ -5,6 +5,8 @@ import {
   deleteUser,
   exportAuditLogs,
   purgeOldMessages,
+  listGroups,
+  deleteGroup,
 } from "../controllers/admin.controller";
 import { authenticate, requireRole } from "../middleware/auth.middleware";
 
@@ -17,6 +19,8 @@ router.use(requireRole("ADMIN"));
 router.get("/users", listUsers);
 router.patch("/users/:id/suspend", toggleUserSuspension);
 router.delete("/users/:id", deleteUser);
+router.get("/groups", listGroups);
+router.delete("/groups/:id", deleteGroup);
 router.post("/export", exportAuditLogs);
 router.post("/purge", purgeOldMessages); // Emitted via post to support confirmation payload
 

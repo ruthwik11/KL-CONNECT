@@ -169,6 +169,13 @@ export function ChatWindow() {
         </div>
       </div>
 
+      {/* 2.5. CONNECTION STATUS ALARM BANNER */}
+      {!socket && (
+        <div className="bg-danger/10 border-b-2 border-dotted border-danger text-danger text-[8px] font-[family-name:var(--font-press-start)] p-3 text-center animate-pulse uppercase tracking-wider select-none shrink-0">
+          ⚠️ Connection Offline • Real-time Messaging Portal Suspended
+        </div>
+      )}
+
       {/* 3. MESSAGE TIMELINE CANVAS */}
       <div
         ref={scrollContainerRef}

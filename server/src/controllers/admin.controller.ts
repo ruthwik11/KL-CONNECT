@@ -219,3 +219,75 @@ export async function purgeOldMessages(req: Request, res: Response, next: NextFu
     next(error);
   }
 }
+
+export async function listGroups(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { q } = req.query;
+
+    const whereClause = q
+      ? {
+          name: {
+            contains: q as string,
+            mode: "insensitive" as const,
+          },
+        }
+      : {};
+
+    const groups = await prisma.group.findMany({
+      where: whereClause,
+      include: {
+        creator: {
+          select: {
+            username: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            members: true,
+          },
+        },
+      },
+      orderBy: { created_at: "desc" },
+    });
+
+    res.status(200).json({
+      status: "success",
+      groups: groups.map((g) => ({
+        group_id: g.group_id,
+        name: g.name,
+        created_at: g.created_at,
+        creator: g.creator,
+        memberCount: g._count.members,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteGroup(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    const group = await prisma.group.findUnique({
+      where: { group_id: id },
+    });
+
+    if (!group) {
+      throw new AppError(404, "Group channel not found");
+    }
+
+    // Hard delete group (cascades memberships, messages, etc.)
+    await prisma.group.delete({
+      where: { group_id: id },
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "Group channel permanently deleted and members ejected",
+    });
+  } catch (error) {
+    next(error);
+  }
+}

@@ -1,6 +1,9 @@
 import { useAuthStore } from "@/stores/auth.store";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+let BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+if (typeof window !== "undefined" && window.location.protocol === "https:" && BACKEND_URL.startsWith("http:")) {
+  BACKEND_URL = BACKEND_URL.replace("http:", "https:");
+}
 const API_BASE = `${BACKEND_URL}/api`;
 
 export async function fetchApi(path: string, options: RequestInit = {}): Promise<any> {
