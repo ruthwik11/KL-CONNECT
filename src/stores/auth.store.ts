@@ -21,14 +21,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   accessToken: null,
   isAuthenticated: false,
-  setAuth: (user, accessToken, refreshToken) => {
-    if (refreshToken) {
-      localStorage.setItem("klc_rt", refreshToken);
-    }
+  setAuth: (user, accessToken, _refreshToken) => {
+    // refreshToken is now managed as an httpOnly cookie — no localStorage storage needed
     set({ user, accessToken, isAuthenticated: true });
   },
   clearAuth: () => {
-    localStorage.removeItem("klc_rt");
     set({ user: null, accessToken: null, isAuthenticated: false });
   },
 }));

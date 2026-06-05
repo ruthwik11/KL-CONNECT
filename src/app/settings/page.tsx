@@ -125,24 +125,17 @@ function SettingsContent() {
         return;
       }
 
-      const rt = localStorage.getItem("klc_rt");
-      if (!rt) {
-        clearAuth();
-        router.push("/login");
-        return;
-      }
-
+      // Attempt to restore session via httpOnly cookie (sent automatically)
       try {
         const data = await fetchApi("/auth/refresh", {
           method: "POST",
-          body: JSON.stringify({ refreshToken: rt }),
         });
 
         const profile = await fetchApi("/users/me", {
           headers: { Authorization: `Bearer ${data.accessToken}` },
         });
 
-        setAuth(profile.user, data.accessToken, data.refreshToken);
+        setAuth(profile.user, data.accessToken);
         initSocket(data.accessToken);
         setStatusText(profile.user.status_text || "");
         setUsername(profile.user.username);

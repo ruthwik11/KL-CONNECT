@@ -46,6 +46,7 @@ model User {
   group_memberships    GroupMember[]
   poll_votes           PollVote[]
   otp_records          OTP[]
+  audit_logs           AuditLog[] @relation("AuditLogAdmin")
 
   @@index([email])
   @@index([is_suspended])
@@ -155,4 +156,19 @@ model PollVote {
 
   @@unique([poll_id, user_id])  // Enforces 1-vote-per-user constraint
   @@map("poll_votes")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  admin_id   String   @db.Uuid
+  action     String   @db.VarChar(64)
+  target_id  String?  @db.Uuid
+  details    Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  admin User @relation("AuditLogAdmin", fields: [admin_id], references: [user_id])
+
+  @@index([admin_id])
+  @@index([action])
+  @@index([created_at])
 }

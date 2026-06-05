@@ -6,6 +6,12 @@ const isMock = !resendApiKey || resendApiKey === "mock" || resendApiKey === "re_
 const resend = isMock ? null : new Resend(resendApiKey);
 
 export async function sendOTP(email: string, otpCode: string): Promise<void> {
+  const isMock = !resendApiKey || resendApiKey === "mock" || resendApiKey === "re_xxxxxxxxxxxx";
+
+  if (process.env.NODE_ENV === "production" && isMock) {
+    throw new Error("Email service is not configured for production! Set a valid RESEND_API_KEY.");
+  }
+
   if (isMock) {
     console.log(`
 ┌────────────────────────────────────────────────────────┐
@@ -39,15 +45,17 @@ export async function sendOTP(email: string, otpCode: string): Promise<void> {
             <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 0; color: #fff;">${otpCode}</p>
           </div>
           <p style="color: #6b7280; font-size: 10px; text-align: center; text-transform: uppercase;">This code will expire in 10 minutes.</p>
-          <p style="color: #6b7280; font-size: 8px; text-align: center; margin-top: 20px; border-t: 1px dotted #2A3FE5; padding-top: 10px;">
+          <p style="color: #6b7280; font-size: 8px; text-align: center; margin-top: 20px; border-top: 1px dotted #2A3FE5; padding-top: 10px;">
             If you did not request this code, you can safely ignore this email.
           </p>
         </div>
       `,
     });
   } catch (error: any) {
-    console.warn("🔴 Failed to send email via Resend, falling back to console logging:", error.message || error);
-    console.log(`
+    if (process.env.NODE_ENV !== "production") {
+      // Only log OTP fallback in development
+      console.warn("🔴 Failed to send email via Resend, falling back to console logging:", error.message || error);
+      console.log(`
 ┌────────────────────────────────────────────────────────┐
 │           🕹️  KL CONNECT SYSTEM (FALLBACK)  🕹️           │
 ├────────────────────────────────────────────────────────┤
@@ -60,5 +68,10 @@ export async function sendOTP(email: string, otpCode: string): Promise<void> {
 │  ⏳ Code expires in 10 minutes.                        │
 └────────────────────────────────────────────────────────┘
 `);
+    } else {
+      console.error("❌ Failed to send OTP email. OTP NOT logged for security.");
+      throw error;
+    }
   }
 }
+

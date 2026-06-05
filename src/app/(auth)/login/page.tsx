@@ -33,6 +33,7 @@ export default function LoginPage() {
       const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
 
@@ -55,7 +56,7 @@ export default function LoginPage() {
       }
 
       // Successful login
-      setAuth(data.user, data.accessToken, data.refreshToken);
+      setAuth(data.user, data.accessToken);
       
       // Redirect based on role
       if (data.user.role === "ADMIN") {

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import prisma from "../config/db";
 import { AppError } from "../utils/errors";
 import { disconnectUser } from "../socket";
+import { logAdminAction } from "../utils/audit.utils";
 
 export async function listUsers(req: Request, res: Response, next: NextFunction) {
   try {
@@ -88,6 +89,8 @@ export async function toggleUserSuspension(req: Request, res: Response, next: Ne
       disconnectUser(id);
     }
 
+    await logAdminAction((req as any).user.user_id, updatedUser.is_suspended ? "SUSPEND_USER" : "UNSUSPEND_USER", id, { username: user.username });
+
     res.status(200).json({
       status: "success",
       is_suspended: updatedUser.is_suspended,
@@ -143,6 +146,8 @@ export async function updateUserUsername(req: Request, res: Response, next: Next
       },
     });
 
+    await logAdminAction((req as any).user.user_id, "UPDATE_USERNAME", id, { oldUsername: user.username, newUsername: trimmedUsername });
+
     res.status(200).json({
       status: "success",
       user: updatedUser,
@@ -176,6 +181,8 @@ export async function deleteUser(req: Request, res: Response, next: NextFunction
     await prisma.user.delete({
       where: { user_id: id },
     });
+
+    await logAdminAction((req as any).user.user_id, "DELETE_USER", id, { username: user.username, email: user.email });
 
     res.status(200).json({
       status: "success",
@@ -327,6 +334,8 @@ export async function purgeOldMessages(req: Request, res: Response, next: NextFu
       },
     });
 
+    await logAdminAction((req as any).user.user_id, "PURGE_MESSAGES", undefined, { deletedCount: deleted.count });
+
     res.status(200).json({
       status: "success",
       purgedCount: deleted.count,
@@ -339,7 +348,16 @@ export async function purgeOldMessages(req: Request, res: Response, next: NextFu
 
 export async function listGroups(req: Request, res: Response, next: NextFunction) {
   try {
-    const { q } = req.query;
+    const { q, page = "1", limit = "20" } = req.query;
+
+    const parsedPage = parseInt(page as string, 10);
+    const parsedLimit = parseInt(limit as string, 10);
+
+    if (isNaN(parsedPage) || parsedPage <= 0 || isNaN(parsedLimit) || parsedLimit <= 0) {
+      throw new AppError(400, "Invalid pagination parameters");
+    }
+
+    const offset = (parsedPage - 1) * parsedLimit;
 
     const whereClause = q
       ? {
@@ -350,23 +368,30 @@ export async function listGroups(req: Request, res: Response, next: NextFunction
         }
       : {};
 
-    const groups = await prisma.group.findMany({
-      where: whereClause,
-      include: {
-        creator: {
-          select: {
-            username: true,
-            email: true,
+    const [groups, totalCount] = await prisma.$transaction([
+      prisma.group.findMany({
+        where: whereClause,
+        include: {
+          creator: {
+            select: {
+              username: true,
+              email: true,
+            },
+          },
+          _count: {
+            select: {
+              members: true,
+            },
           },
         },
-        _count: {
-          select: {
-            members: true,
-          },
-        },
-      },
-      orderBy: { created_at: "desc" },
-    });
+        orderBy: { created_at: "desc" },
+        skip: offset,
+        take: parsedLimit,
+      }),
+      prisma.group.count({ where: whereClause }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / parsedLimit);
 
     res.status(200).json({
       status: "success",
@@ -377,6 +402,11 @@ export async function listGroups(req: Request, res: Response, next: NextFunction
         creator: g.creator,
         memberCount: g._count.members,
       })),
+      pagination: {
+        total: totalCount,
+        totalPages,
+        currentPage: parsedPage,
+      },
     });
   } catch (error) {
     next(error);
@@ -399,6 +429,8 @@ export async function deleteGroup(req: Request, res: Response, next: NextFunctio
     await prisma.group.delete({
       where: { group_id: id },
     });
+
+    await logAdminAction((req as any).user.user_id, "DELETE_GROUP", id, { groupName: group.name });
 
     res.status(200).json({
       status: "success",

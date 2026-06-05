@@ -34,27 +34,18 @@ export default function ChatPage() {
         return;
       }
 
-      const rt = localStorage.getItem("klc_rt");
-      if (!rt) {
-        clearAuth();
-        router.push("/login");
-        return;
-      }
-
+      // Attempt to restore session via httpOnly cookie (sent automatically)
       try {
         const data = await fetchApi("/auth/refresh", {
           method: "POST",
-          body: JSON.stringify({ refreshToken: rt }),
         });
 
-        // Set restored session details
-        // In a real database, we would also verify or fetch user profile info
-        // For local restoration we can fetch user profile:
+        // Fetch user profile with the new access token
         const profile = await fetchApi("/users/me", {
           headers: { Authorization: `Bearer ${data.accessToken}` },
         });
 
-        setAuth(profile.user, data.accessToken, data.refreshToken);
+        setAuth(profile.user, data.accessToken);
         initSocket(data.accessToken);
       } catch (err) {
         console.error("🔒 Auth restoration failed:", err);
