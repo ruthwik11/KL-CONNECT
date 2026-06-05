@@ -142,7 +142,7 @@ export async function exportAuditLogs(req: Request, res: Response, next: NextFun
     const start = new Date(`${startDate}T00:00:00.000Z`);
     const end = new Date(`${endDate}T23:59:59.999Z`);
 
-    // Retrieve messages in range with sender information
+    // Retrieve messages in range with sender information and group info (for name fallback)
     const messages = await prisma.message.findMany({
       where: {
         timestamp: {
@@ -157,33 +157,95 @@ export async function exportAuditLogs(req: Request, res: Response, next: NextFun
             email: true,
           },
         },
+        group: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: { timestamp: "asc" },
     });
 
+    // Gather unique user target IDs for DM messages to fetch their emails
+    const dmTargetIds = Array.from(new Set(
+      messages
+        .filter((m) => m.target_type === "DM")
+        .map((m) => m.target_id)
+    ));
+
+    const targetUsers = dmTargetIds.length > 0
+      ? await prisma.user.findMany({
+          where: { user_id: { in: dmTargetIds } },
+          select: { user_id: true, email: true },
+        })
+      : [];
+
+    const targetUserEmailMap = new Map<string, string>(
+      targetUsers.map((u) => [u.user_id, u.email])
+    );
+
+    // Custom helper to sanitize cells for CSV structure (quoting and escaping)
+    const escapeCSVCell = (val: string | null | undefined): string => {
+      if (val === null || val === undefined) return "";
+      const str = String(val);
+      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Helper to format date in IST (UTC+5:30) as DD-MM-YYYY HH:mm:ss
+    const formatToIST = (date: Date): string => {
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const istDate = new Date(date.getTime() + istOffset);
+      const day = String(istDate.getUTCDate()).padStart(2, "0");
+      const month = String(istDate.getUTCMonth() + 1).padStart(2, "0");
+      const year = istDate.getUTCFullYear();
+      const hours = String(istDate.getUTCHours()).padStart(2, "0");
+      const minutes = String(istDate.getUTCMinutes()).padStart(2, "0");
+      const seconds = String(istDate.getUTCSeconds()).padStart(2, "0");
+      return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
+    };
+
     // Raw CSV Compilation
-    const headers = ["message_id", "sender_username", "sender_email", "target_id", "target_type", "content", "timestamp"];
+    const headers = [
+      "sender username",
+      "sender email",
+      "target persons email",
+      "target type",
+      "content",
+      "timestamp"
+    ];
     const rows = [headers.join(",")];
 
     for (const msg of messages) {
-      const sanitizedContent = msg.content.replace(/"/g, '""');
+      const targetEmail = msg.target_type === "DM"
+        ? (targetUserEmailMap.get(msg.target_id) || `Unknown User: ${msg.target_id}`)
+        : (msg.group ? `Group: #${msg.group.name}` : `Group: ${msg.target_id}`);
+
       const values = [
-        msg.msg_id,
-        msg.sender.username,
-        msg.sender.email,
-        msg.target_id,
-        msg.target_type,
-        `"${sanitizedContent}"`,
-        msg.timestamp.toISOString(),
+        escapeCSVCell(msg.sender.username),
+        escapeCSVCell(msg.sender.email),
+        escapeCSVCell(targetEmail),
+        escapeCSVCell(msg.target_type),
+        escapeCSVCell(msg.content),
+        escapeCSVCell(formatToIST(msg.timestamp)),
       ];
       rows.push(values.join(","));
     }
 
     const csvString = rows.join("\n");
 
+    // Dynamic filename: Chat history[DD-MM-YYYY].csv (based on current date in IST)
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const nowIST = new Date(now.getTime() + istOffset);
+    const filenameDate = `${String(nowIST.getUTCDate()).padStart(2, "0")}-${String(nowIST.getUTCMonth() + 1).padStart(2, "0")}-${nowIST.getUTCFullYear()}`;
+    const filename = `Chat history[${filenameDate}].csv`;
+
     // Send direct attachment stream response
     res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename=chat_audit_logs_${Date.now()}.csv`);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     
     res.status(200).send(csvString);
   } catch (error) {

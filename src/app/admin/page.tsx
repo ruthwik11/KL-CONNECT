@@ -303,9 +303,18 @@ export default function AdminDashboard() {
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
+      
+      // Dynamic filename: Chat history[DD-MM-YYYY].csv (based on current local date)
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, "0");
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const year = now.getFullYear();
+      const formattedDate = `${day}-${month}-${year}`;
+      const filename = `Chat history[${formattedDate}].csv`;
+
       const a = document.createElement("a");
       a.href = url;
-      a.download = `chat_audit_logs_${Date.now()}.csv`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
