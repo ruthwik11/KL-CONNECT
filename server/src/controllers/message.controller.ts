@@ -15,10 +15,6 @@ export async function sendMessage(req: Request, res: Response, next: NextFunctio
       throw new AppError(400, "Invalid targetType. Must be 'DM' or 'GROUP'");
     }
 
-    const trimmedContent = content.trim();
-    if (trimmedContent.length === 0) throw new AppError(400, "Message cannot be empty");
-    if (trimmedContent.length > 5000) throw new AppError(400, "Message must be under 5000 characters");
-
     if (targetType === "DM") {
       // 1. Enforce mutual friendship
       const [user_a_id, user_b_id] = [senderId, targetId].sort();
@@ -54,7 +50,7 @@ export async function sendMessage(req: Request, res: Response, next: NextFunctio
         sender_id: senderId,
         target_id: targetId,
         target_type: targetType,
-        content: trimmedContent,
+        content,
       },
     });
 
@@ -71,9 +67,12 @@ export async function getDMHistory(req: Request, res: Response, next: NextFuncti
   try {
     const { userId } = req.params; // The other user's id
     const currentUserId = req.user!.user_id;
-    const { cursor } = req.query;
+    const { cursor, limit = "50" } = req.query;
 
-    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const parsedLimit = parseInt(limit as string, 10);
+    if (isNaN(parsedLimit) || parsedLimit <= 0) {
+      throw new AppError(400, "Invalid limit parameter");
+    }
 
     // Enforce mutual friendship
     const [user_a_id, user_b_id] = [currentUserId, userId].sort();
@@ -106,14 +105,14 @@ export async function getDMHistory(req: Request, res: Response, next: NextFuncti
       orderBy: {
         timestamp: "desc",
       },
-      take: limit,
+      take: parsedLimit,
     });
 
     // Reverse messages to return them in chronological order
     const chronologicalMessages = [...messages].reverse();
 
     // Determine the next cursor (the timestamp of the oldest message fetched in this batch)
-    const nextCursor = messages.length === limit ? messages[messages.length - 1].timestamp : null;
+    const nextCursor = messages.length === parsedLimit ? messages[messages.length - 1].timestamp : null;
 
     res.status(200).json({
       status: "success",
@@ -129,9 +128,12 @@ export async function getGroupHistory(req: Request, res: Response, next: NextFun
   try {
     const { groupId } = req.params;
     const currentUserId = req.user!.user_id;
-    const { cursor } = req.query;
+    const { cursor, limit = "50" } = req.query;
 
-    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const parsedLimit = parseInt(limit as string, 10);
+    if (isNaN(parsedLimit) || parsedLimit <= 0) {
+      throw new AppError(400, "Invalid limit parameter");
+    }
 
     // 1. Verify current user is a member of the group
     const membership = await prisma.groupMember.findUnique({
@@ -161,12 +163,12 @@ export async function getGroupHistory(req: Request, res: Response, next: NextFun
       orderBy: {
         timestamp: "desc",
       },
-      take: limit,
+      take: parsedLimit,
     });
 
     // 3. Return chronological order
     const chronologicalMessages = [...messages].reverse();
-    const nextCursor = messages.length === limit ? messages[messages.length - 1].timestamp : null;
+    const nextCursor = messages.length === parsedLimit ? messages[messages.length - 1].timestamp : null;
 
     res.status(200).json({
       status: "success",

@@ -38,17 +38,24 @@ export default function GroupsPage() {
         return;
       }
 
-      // Attempt to restore session via httpOnly cookie (sent automatically)
+      const rt = localStorage.getItem("klc_rt");
+      if (!rt) {
+        clearAuth();
+        router.push("/login");
+        return;
+      }
+
       try {
         const data = await fetchApi("/auth/refresh", {
           method: "POST",
+          body: JSON.stringify({ refreshToken: rt }),
         });
 
         const profile = await fetchApi("/users/me", {
           headers: { Authorization: `Bearer ${data.accessToken}` },
         });
 
-        setAuth(profile.user, data.accessToken);
+        setAuth(profile.user, data.accessToken, data.refreshToken);
         initSocket(data.accessToken);
       } catch (err) {
         console.error("🔒 Auth restoration failed:", err);

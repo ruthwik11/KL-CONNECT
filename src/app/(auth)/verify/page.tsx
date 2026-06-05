@@ -111,7 +111,6 @@ function VerifyForm() {
       const response = await fetch(`${BACKEND_URL}/api/auth/otp/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ email, code: otpString }),
       });
 
@@ -122,7 +121,7 @@ function VerifyForm() {
       }
 
       // Save credentials in store
-      setAuth(data.user, data.accessToken);
+      setAuth(data.user, data.accessToken, data.refreshToken);
 
       setSuccess("VERIFICATION COMPLETE!");
       

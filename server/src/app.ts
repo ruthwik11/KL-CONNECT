@@ -2,9 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
-import cookieParser from "cookie-parser";
 import { globalLimiter } from "./middleware/rateLimiter";
-import { requestId, requestLogger } from "./middleware/requestId";
 import { errorHandler } from "./middleware/errorHandler";
 import authRoutes from "./routes/auth.routes";
 import friendshipRoutes from "./routes/friendship.routes";
@@ -18,10 +16,6 @@ import pollRoutes from "./routes/poll.routes";
 dotenv.config();
 
 const app = express();
-
-// Request ID and logging (top of middleware stack)
-app.use(requestId);
-app.use(requestLogger);
 
 // Global security middleware
 app.use(
@@ -42,9 +36,8 @@ app.use(
 );
 
 // CORS setup
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : [process.env.CLIENT_URL || "http://localhost:3000"];
+const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, "") : "http://localhost:3000";
+const allowedOrigins = [clientUrl, "https://kl-connect.vercel.app"];
 
 app.use(
   cors({
@@ -61,8 +54,7 @@ app.use(
 );
 
 // Body parsing
-app.use(express.json({ limit: '1mb' }));
-app.use(cookieParser());
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Health Check API (exempt from rate limits if needed, but currently placed under global)

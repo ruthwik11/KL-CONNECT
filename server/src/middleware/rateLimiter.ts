@@ -92,33 +92,3 @@ export const globalLimiter = rateLimit({
     message: "Too many requests from this IP, please try again after 15 minutes",
   },
 });
-
-// Strict limiter for auth endpoints (login, register)
-export const authLimiter = rateLimit({
-  store: new AdaptiveStore(),
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { status: "error", message: "Too many authentication attempts. Please try again in 15 minutes." },
-});
-
-// OTP limiter (send/verify)
-export const otpLimiter = rateLimit({
-  store: new AdaptiveStore(),
-  windowMs: 15 * 60 * 1000,
-  max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { status: "error", message: "Too many OTP requests. Please try again in 15 minutes." },
-});
-
-// Message sending limiter
-export const messageLimiter = rateLimit({
-  store: new AdaptiveStore(),
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { status: "error", message: "Too many messages. Please slow down." },
-});

@@ -17,19 +17,6 @@ interface AuthenticatedSocket extends Socket {
 const activeConnections = new Map<string, Set<string>>();
 let ioInstance: SocketIOServer | null = null;
 
-const socketRateLimits = new Map<string, { count: number; resetAt: number }>();
-
-function checkSocketRateLimit(socketId: string, maxPerMinute = 30): boolean {
-  const now = Date.now();
-  const entry = socketRateLimits.get(socketId);
-  if (!entry || now > entry.resetAt) {
-    socketRateLimits.set(socketId, { count: 1, resetAt: now + 60000 });
-    return true;
-  }
-  entry.count++;
-  return entry.count <= maxPerMinute;
-}
-
 export function isUserOnline(userId: string): boolean {
   const connections = activeConnections.get(userId);
   return connections ? connections.size > 0 : false;
@@ -51,9 +38,10 @@ export function disconnectUser(userId: string) {
 export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.ALLOWED_ORIGINS
-        ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-        : [process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, "") : "http://localhost:3000"],
+      origin: [
+        process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, "") : "http://localhost:3000",
+        "https://kl-connect.vercel.app"
+      ],
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -133,22 +121,10 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
     // 4. Handle DM sends
     socket.on("dm:send", async (payload: { targetId: string; content: string }, callback) => {
       try {
-        if (!checkSocketRateLimit(socket.id)) {
-          return callback?.({ error: "Too many messages. Please slow down." });
-        }
-
         const { targetId, content } = payload;
-
-        if (!content || typeof content !== "string") {
-          return callback?.({ error: "Message content is required" });
-        }
-        const trimmedContent = content.trim();
-        if (trimmedContent.length === 0 || trimmedContent.length > 5000) {
-          return callback?.({ error: "Message must be between 1 and 5000 characters" });
-        }
-
-        if (!targetId) {
-          throw new Error("Target ID is required");
+        
+        if (!targetId || !content) {
+          throw new Error("Target ID and content are required");
         }
 
         // Verify mutual friendship
@@ -170,7 +146,7 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
             sender_id: userId,
             target_id: targetId,
             target_type: "DM",
-            content: trimmedContent,
+            content,
           },
         });
 
@@ -213,22 +189,10 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
 
     socket.on("group:send", async (payload: { groupId: string; content: string }, callback) => {
       try {
-        if (!checkSocketRateLimit(socket.id)) {
-          return callback?.({ error: "Too many messages. Please slow down." });
-        }
-
         const { groupId, content } = payload;
 
-        if (!content || typeof content !== "string") {
-          return callback?.({ error: "Message content is required" });
-        }
-        const trimmedContent = content.trim();
-        if (trimmedContent.length === 0 || trimmedContent.length > 5000) {
-          return callback?.({ error: "Message must be between 1 and 5000 characters" });
-        }
-
-        if (!groupId) {
-          throw new Error("Group target is required");
+        if (!groupId || !content) {
+          throw new Error("Group target and content are required");
         }
 
         // Verify membership
@@ -251,7 +215,7 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
             sender_id: userId,
             target_id: groupId,
             target_type: "GROUP",
-            content: trimmedContent,
+            content,
           },
         });
 
@@ -311,7 +275,6 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
 
     // 8. Handle disconnection
     socket.on("disconnect", () => {
-      socketRateLimits.delete(socket.id);
       const connections = activeConnections.get(userId);
       if (connections) {
         connections.delete(socket.id);

@@ -21,43 +21,43 @@ export async function fetchApi(path: string, options: RequestInit = {}): Promise
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
-    credentials: "include",
   });
 
   // Handle unauthorized / expired access token (attempt token rotation)
   if (response.status === 401 && path !== "/auth/login" && path !== "/auth/refresh") {
-    try {
-      const refreshResponse = await fetch(`${API_BASE}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({}),
-      });
-
-      if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        // Update store with new access token (refresh token is in httpOnly cookie)
-        if (store.user) {
-          store.setAuth(store.user, data.accessToken);
-        }
-
-        // Retry the original request
-        headers.set("Authorization", `Bearer ${data.accessToken}`);
-        const retryResponse = await fetch(`${API_BASE}${path}`, {
-          ...options,
-          headers,
-          credentials: "include",
+    const rt = localStorage.getItem("klc_rt");
+    if (rt) {
+      try {
+        const refreshResponse = await fetch(`${API_BASE}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: rt }),
         });
 
-        if (!retryResponse.ok) {
-          const errData = await retryResponse.json().catch(() => ({}));
-          throw new Error(errData.message || "Request retry failed");
-        }
+        if (refreshResponse.ok) {
+          const data = await refreshResponse.json();
+          // Update store with new tokens
+          if (store.user) {
+            store.setAuth(store.user, data.accessToken, data.refreshToken);
+          }
 
-        return retryResponse.json();
+          // Retry the original request
+          headers.set("Authorization", `Bearer ${data.accessToken}`);
+          const retryResponse = await fetch(`${API_BASE}${path}`, {
+            ...options,
+            headers,
+          });
+
+          if (!retryResponse.ok) {
+            const errData = await retryResponse.json().catch(() => ({}));
+            throw new Error(errData.message || "Request retry failed");
+          }
+
+          return retryResponse.json();
+        }
+      } catch (err) {
+        console.error("🔒 Token refresh rotation failed:", err);
       }
-    } catch (err) {
-      console.error("🔒 Token refresh rotation failed:", err);
     }
 
     // Force logout on session invalidation

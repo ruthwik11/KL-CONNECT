@@ -98,26 +98,3 @@ export async function revokeRefreshToken(token: string): Promise<void> {
   }
   inMemoryRefreshTokenStore.delete(token);
 }
-
-// ── httpOnly Cookie Helpers ──────────────────────────────────────────
-
-import { Response } from "express";
-
-export function setRefreshTokenCookie(res: Response, token: string) {
-  res.cookie("klc_rt", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    path: "/api/auth",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
-}
-
-export function clearRefreshTokenCookie(res: Response) {
-  res.clearCookie("klc_rt", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    path: "/api/auth",
-  });
-}

@@ -329,7 +329,6 @@ export default function AdminDashboard() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${accessToken}`,
         },
-        credentials: "include",
         body: JSON.stringify({ startDate, endDate }),
       });
 

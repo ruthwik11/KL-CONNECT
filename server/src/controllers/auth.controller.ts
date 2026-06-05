@@ -9,20 +9,16 @@ import {
   createRefreshToken,
   getUserIdFromRefreshToken,
   revokeRefreshToken,
-  setRefreshTokenCookie,
-  clearRefreshTokenCookie,
 } from "../utils/token.utils";
 
 const KLU_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@kluniversity\.in$/i;
 const SALT_ROUNDS = 12;
 
-const ALLOWED_ADMIN_EMAILS = process.env.ALLOWED_ADMIN_EMAILS
-  ? process.env.ALLOWED_ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase())
-  : [];
-
-if (ALLOWED_ADMIN_EMAILS.length === 0) {
-  console.warn("⚠️  WARNING: ALLOWED_ADMIN_EMAILS env var is not set. No admin registrations will be possible.");
-}
+const ALLOWED_ADMIN_EMAILS = [
+  "joegoldberg@gmail.com",
+  "jonathanmoore@gmail.com",
+  "willbettelheim@gmail.com"
+];
 
 // Hash OTP helper (SHA-256)
 function hashOTP(code: string): string {
@@ -174,17 +170,15 @@ export async function verifyVerificationOTP(req: Request, res: Response, next: N
       data: { consumed: true },
     });
 
-    // Check suspension BEFORE marking as verified
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser?.is_suspended) {
-      throw new AppError(403, "Your account has been suspended. Please contact administration.");
-    }
-
     // Verify User
     const user = await prisma.user.update({
       where: { email },
       data: { is_verified: true },
     });
+
+    if (user.is_suspended) {
+      throw new AppError(403, "Your account has been suspended. Please contact administration.");
+    }
 
     // Generate session tokens
     const accessToken = signAccessToken({
@@ -194,12 +188,12 @@ export async function verifyVerificationOTP(req: Request, res: Response, next: N
     });
     
     const refreshToken = await createRefreshToken(user.user_id);
-    setRefreshTokenCookie(res, refreshToken);
 
     res.status(200).json({
       status: "success",
       message: "Email verified successfully",
       accessToken,
+      refreshToken,
       user: {
         user_id: user.user_id,
         username: user.username,
@@ -253,11 +247,11 @@ export async function login(req: Request, res: Response, next: NextFunction) {
     });
     
     const refreshToken = await createRefreshToken(user.user_id);
-    setRefreshTokenCookie(res, refreshToken);
 
     res.status(200).json({
       status: "success",
       accessToken,
+      refreshToken,
       user: {
         user_id: user.user_id,
         username: user.username,
@@ -272,7 +266,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
 
 export async function refresh(req: Request, res: Response, next: NextFunction) {
   try {
-    const refreshToken = req.cookies?.klc_rt;
+    const { refreshToken } = req.body;
 
     if (!refreshToken) {
       throw new AppError(400, "Refresh token is required");
@@ -307,11 +301,11 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
     });
 
     const newRefreshToken = await createRefreshToken(user.user_id);
-    setRefreshTokenCookie(res, newRefreshToken);
 
     res.status(200).json({
       status: "success",
       accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
     });
   } catch (error) {
     next(error);
@@ -320,13 +314,11 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
 
 export async function logout(req: Request, res: Response, next: NextFunction) {
   try {
-    const refreshToken = req.cookies?.klc_rt;
+    const { refreshToken } = req.body;
 
     if (refreshToken) {
       await revokeRefreshToken(refreshToken);
     }
-
-    clearRefreshTokenCookie(res);
 
     res.status(200).json({
       status: "success",
@@ -343,10 +335,6 @@ export async function provisionUser(req: Request, res: Response, next: NextFunct
 
     if (!username || !email || !password || !role) {
       throw new AppError(400, "Username, email, password, and role are required");
-    }
-
-    if (!password || password.length < 8) {
-      throw new AppError(400, "Password must be at least 8 characters");
     }
 
     if (!["USER", "ADMIN"].includes(role)) {
@@ -383,20 +371,9 @@ export async function provisionUser(req: Request, res: Response, next: NextFunct
       },
     });
 
-    // Generate tokens for provisioned user
-    const accessToken = signAccessToken({
-      sub: user.user_id,
-      username: user.username,
-      role: user.role,
-    });
-
-    const refreshToken = await createRefreshToken(user.user_id);
-    setRefreshTokenCookie(res, refreshToken);
-
     res.status(201).json({
       status: "success",
       message: "Account provisioned successfully bypass OTP validation",
-      accessToken,
       user: {
         user_id: user.user_id,
         username: user.username,
