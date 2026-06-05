@@ -211,7 +211,7 @@ export function ChatWindow() {
               >
                 {/* Username label */}
                 <span className="text-[8px] text-muted uppercase mb-1 px-1">
-                  {isMe ? "Player 1 (Me)" : activeFriend.username}
+                  {isMe ? `${currentUser?.username || "Player 1"} (Me)` : activeFriend.username}
                 </span>
 
                 {/* Speech Bubble */}

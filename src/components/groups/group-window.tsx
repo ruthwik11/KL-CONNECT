@@ -207,7 +207,7 @@ export function GroupWindow({ groupId, triggerRefresh }: GroupWindowProps) {
 
   // Determine sender username from members cache or self
   const getSenderName = (senderId: string) => {
-    if (senderId === currentUser?.user_id) return "Player 1 (Me)";
+    if (senderId === currentUser?.user_id) return `${currentUser?.username || "Player 1"} (Me)`;
     const member = members.find((m) => m.user_id === senderId);
     return member ? member.username : "Player X";
   };

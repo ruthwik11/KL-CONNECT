@@ -49,7 +49,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   socket: null,
   isConnecting: false,
 
-  setFriends: (friends) => set({ friends }),
+  setFriends: (newFriends) => {
+    set((state) => {
+      const updatedFriends = newFriends.map((nf) => {
+        const existing = state.friends.find((f) => f.user_id === nf.user_id);
+        return {
+          ...nf,
+          online: existing ? existing.online : false,
+          spotifyPlaying: existing ? existing.spotifyPlaying : null,
+        };
+      });
+      return { friends: updatedFriends };
+    });
+  },
 
   setActiveFriendId: (id) => set({ activeFriendId: id }),
 
