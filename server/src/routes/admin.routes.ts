@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   listUsers,
   toggleUserSuspension,
+  updateUserUsername,
   deleteUser,
   exportAuditLogs,
   purgeOldMessages,
@@ -18,6 +19,7 @@ router.use(requireRole("ADMIN"));
 
 router.get("/users", listUsers);
 router.patch("/users/:id/suspend", toggleUserSuspension);
+router.patch("/users/:id/username", updateUserUsername);
 router.delete("/users/:id", deleteUser);
 router.get("/groups", listGroups);
 router.delete("/groups/:id", deleteGroup);

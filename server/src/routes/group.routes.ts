@@ -7,14 +7,14 @@ import {
   listGroupMembers,
   listMyJoinedGroups,
 } from "../controllers/group.controller";
-import { authenticate } from "../middleware/auth.middleware";
+import { authenticate, requireRole } from "../middleware/auth.middleware";
 
 const router = Router();
 
 // Protect all group channel endpoints
 router.use(authenticate);
 
-router.post("/", createGroup);
+router.post("/", requireRole("ADMIN"), createGroup);
 router.get("/public", listPublicGroups);
 router.get("/my", listMyJoinedGroups);
 router.post("/:id/join", joinGroup);

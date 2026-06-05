@@ -23,7 +23,8 @@ import {
   Database,
   Terminal,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Edit2
 } from "lucide-react";
 
 interface AdminUser {
@@ -172,6 +173,41 @@ export default function AdminDashboard() {
     e.preventDefault();
     setCurrentPage(1);
     loadUsers(1, searchQuery);
+  };
+
+  const handleEditUsername = async (userId: string, currentUsername: string) => {
+    const newUsername = prompt("ENTER NEW USERNAME FOR NODE:", currentUsername);
+    if (newUsername === null) return; // Cancelled
+    
+    const trimmed = newUsername.trim();
+    if (!trimmed) {
+      alert("ERROR: USERNAME CANNOT BE EMPTY");
+      return;
+    }
+    if (trimmed.length > 32) {
+      alert("ERROR: USERNAME MUST BE UNDER 32 CHARACTERS");
+      return;
+    }
+    
+    setActionLoadingUser(userId);
+    setUserError(null);
+    
+    try {
+      const data = await fetchApi(`/admin/users/${userId}/username`, {
+        method: "PATCH",
+        body: JSON.stringify({ username: trimmed }),
+      });
+      
+      if (data.status === "success") {
+        setUsers((prev) =>
+          prev.map((u) => (u.user_id === userId ? { ...u, username: trimmed } : u))
+        );
+      }
+    } catch (err: any) {
+      setUserError(err.message || "Failed to update username");
+    } finally {
+      setActionLoadingUser(null);
+    }
   };
 
   const handleToggleSuspension = async (userId: string) => {
@@ -463,7 +499,17 @@ export default function AdminDashboard() {
                     ) : (
                       users.map((u) => (
                         <tr key={u.user_id} className="border-b border-solid border-white/10 hover:bg-white/5 transition-colors">
-                          <td className="p-3 font-bold">{u.username}</td>
+                          <td className="p-3 font-bold flex items-center gap-2">
+                            <span>{u.username}</span>
+                            <button
+                              onClick={() => handleEditUsername(u.user_id, u.username)}
+                              disabled={actionLoadingUser === u.user_id}
+                              className="text-gray-400 hover:text-white cursor-pointer transition-colors"
+                              title="Edit Username"
+                            >
+                              <Edit2 size={10} />
+                            </button>
+                          </td>
                           <td className="p-3 text-gray-400">{u.email}</td>
                           <td className="p-3 font-bold">
                             <span className={u.role === "ADMIN" ? "text-white underline decoration-dotted" : "text-gray-400"}>

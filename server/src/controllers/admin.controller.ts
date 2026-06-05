@@ -98,6 +98,61 @@ export async function toggleUserSuspension(req: Request, res: Response, next: Ne
   }
 }
 
+export async function updateUserUsername(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { username } = req.body;
+
+    if (!username || typeof username !== "string" || username.trim().length === 0) {
+      throw new AppError(400, "Username is required");
+    }
+
+    const trimmedUsername = username.trim();
+    if (trimmedUsername.length > 32) {
+      throw new AppError(400, "Username must be under 32 characters");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { user_id: id },
+    });
+
+    if (!user) {
+      throw new AppError(404, "User account not found");
+    }
+
+    // Check if the username is already taken
+    const existingUser = await prisma.user.findUnique({
+      where: { username: trimmedUsername },
+    });
+
+    if (existingUser && existingUser.user_id !== id) {
+      throw new AppError(400, "Username is already taken");
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { user_id: id },
+      data: { username: trimmedUsername },
+      select: {
+        user_id: true,
+        username: true,
+        email: true,
+        role: true,
+        is_verified: true,
+        is_suspended: true,
+        created_at: true,
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      user: updatedUser,
+      message: "Username updated successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function deleteUser(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Users, Search, Plus } from "lucide-react";
 import { fetchApi } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth.store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -30,6 +31,9 @@ export function GroupList({
   onRefreshTrigger,
   triggerRefresh,
 }: GroupListProps) {
+  const currentUser = useAuthStore((state) => state.user);
+  const isAdmin = currentUser?.role === "ADMIN";
+
   const [groups, setGroups] = React.useState<Group[]>([]);
   const [search, setSearch] = React.useState("");
   const [newGroupName, setNewGroupName] = React.useState("");
@@ -88,20 +92,22 @@ export function GroupList({
             👾 channels
           </span>
           
-          <button
-            onClick={() => {
-              setShowCreateForm(!showCreateForm);
-              setCreateError(null);
-            }}
-            className="flex items-center justify-center p-1 rounded border border-primary text-primary hover:bg-primary hover:text-white cursor-pointer transition-colors"
-            title="Create New Channel"
-          >
-            <Plus size={14} />
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setShowCreateForm(!showCreateForm);
+                setCreateError(null);
+              }}
+              className="flex items-center justify-center p-1 rounded border border-primary text-primary hover:bg-primary hover:text-white cursor-pointer transition-colors"
+              title="Create New Channel"
+            >
+              <Plus size={14} />
+            </button>
+          )}
         </div>
 
         {/* Create group form */}
-        {showCreateForm ? (
+        {isAdmin && showCreateForm ? (
           <form onSubmit={handleCreateGroup} className="flex flex-col gap-2 p-2.5 bg-primary/5 border-2 border-dashed border-primary rounded-[4px] font-[family-name:var(--font-space-mono)]">
             <span className="font-[family-name:var(--font-press-start)] text-[7px] text-secondary uppercase">
               NEW CHANNEL SELECT
