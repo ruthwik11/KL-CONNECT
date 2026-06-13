@@ -2,6 +2,7 @@ import { Server as SocketIOServer, Socket } from "socket.io";
 import { Server as HTTPServer } from "http";
 import { verifyAccessToken } from "./utils/token.utils";
 import prisma from "./config/db";
+import { fetchSpotifyCurrentlyPlaying, TrackInfo } from "./services/spotify.service";
 
 // Extend Socket type to store authenticated user details
 interface AuthenticatedSocket extends Socket {
@@ -16,6 +17,10 @@ interface AuthenticatedSocket extends Socket {
 // In-memory session tracking for active connections (user_id -> Set of socket_ids)
 const activeConnections = new Map<string, Set<string>>();
 let ioInstance: SocketIOServer | null = null;
+
+// In-memory Spotify status cache and simulated overrides
+const onlineSpotifyTracks = new Map<string, TrackInfo | null>();
+const manualSimulatedOverride = new Set<string>();
 
 export function isUserOnline(userId: string): boolean {
   const connections = activeConnections.get(userId);
@@ -115,8 +120,36 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
       if (isUserOnline(friendId)) {
         // Emit to friend's private room
         io.to(friendId).emit("presence:online", { userId });
+
+        // If the online friend is playing Spotify, send their track state to the connecting user
+        const friendTrack = onlineSpotifyTracks.get(friendId);
+        if (friendTrack) {
+          socket.emit("spotify:nowplaying", {
+            userId: friendId,
+            playing: friendTrack,
+          });
+        }
       }
     });
+
+    // Try to fetch connecting user's Spotify track immediately and broadcast to online friends
+    if (activeConnections.get(userId)!.size === 1) {
+      fetchSpotifyCurrentlyPlaying(userId).then((track) => {
+        if (track && !manualSimulatedOverride.has(userId)) {
+          onlineSpotifyTracks.set(userId, track);
+          friends.forEach((friendId) => {
+            if (isUserOnline(friendId)) {
+              io.to(friendId).emit("spotify:nowplaying", {
+                userId,
+                playing: track,
+              });
+            }
+          });
+        }
+      }).catch((err) => {
+        console.error(`Error on immediate Spotify fetch for user ${userId}:`, err);
+      });
+    }
 
     // 4. Handle DM sends
     socket.on("dm:send", async (payload: { targetId: string; content: string }, callback) => {
@@ -255,6 +288,13 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
 
     // 6. Handle Spotify now-playing broadcast
     socket.on("spotify:broadcast", (payload: { track: string; artist: string; albumArt?: string } | null) => {
+      if (payload) {
+        manualSimulatedOverride.add(userId);
+        onlineSpotifyTracks.set(userId, payload);
+      } else {
+        manualSimulatedOverride.delete(userId);
+        onlineSpotifyTracks.delete(userId);
+      }
       friends.forEach((friendId) => {
         if (isUserOnline(friendId)) {
           io.to(friendId).emit("spotify:nowplaying", {
@@ -280,6 +320,8 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
         connections.delete(socket.id);
         if (connections.size === 0) {
           activeConnections.delete(userId);
+          onlineSpotifyTracks.delete(userId);
+          manualSimulatedOverride.delete(userId);
           console.log(`🔌 Player disconnected (Session closed): ${user.username}`);
 
           // Broadcast offline event to friends
@@ -294,6 +336,45 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
       }
     });
   });
+
+  // Start background Spotify polling worker (every 15 seconds)
+  setInterval(async () => {
+    try {
+      const onlineUserIds = Array.from(activeConnections.keys());
+      await Promise.all(
+        onlineUserIds.map(async (onlineUserId) => {
+          if (manualSimulatedOverride.has(onlineUserId)) {
+            return;
+          }
+
+          try {
+            const currentTrack = await fetchSpotifyCurrentlyPlaying(onlineUserId);
+            const cachedTrack = onlineSpotifyTracks.get(onlineUserId);
+
+            const hasChanged = JSON.stringify(currentTrack) !== JSON.stringify(cachedTrack);
+
+            if (hasChanged) {
+              onlineSpotifyTracks.set(onlineUserId, currentTrack);
+
+              const userFriends = await getAcceptedFriendsList(onlineUserId);
+              userFriends.forEach((friendId) => {
+                if (isUserOnline(friendId)) {
+                  io.to(friendId).emit("spotify:nowplaying", {
+                    userId: onlineUserId,
+                    playing: currentTrack,
+                  });
+                }
+              });
+            }
+          } catch (err) {
+            console.error(`🔴 Spotify background polling failed for user ${onlineUserId}:`, err);
+          }
+        })
+      );
+    } catch (error) {
+      console.error("🔴 Spotify background polling worker error:", error);
+    }
+  }, 15000);
 
   return io;
 }
