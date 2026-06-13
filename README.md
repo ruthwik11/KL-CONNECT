@@ -292,7 +292,7 @@ Future improvements:
 
 ## Credits
 
-Built by **Ruth** (Sai Ruthwik Pakala) and team at KL University, during actual coursework. No corporate sponsors. No "startup accelerators." Just code.
+Built by **Ruth** , during actual coursework. No corporate sponsors.  Just Vibecoded this thing.
 
 ---
 
